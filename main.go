@@ -13,6 +13,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	"github.com/olivere/elastic"
+	"github.com/pborman/uuid"
 )
 
 const (
