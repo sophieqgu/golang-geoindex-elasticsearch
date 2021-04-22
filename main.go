@@ -4,11 +4,13 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
 	"reflect"
 	"strconv"
 
+	"cloud.google.com/go/storage"
 	"github.com/olivere/elastic"
 )
 
@@ -16,7 +18,22 @@ const (
 	POST_INDEX = "post"
 	DISTANCE   = "200km"
 
-	ES_URL = "http://10.128.0.2:9200"
+	ES_URL      = "http://10.128.0.2:9200"
+	BUCKET_NAME = "around-project-sophieqgu"
+)
+
+var (
+	mediaTypes = map[string]string{
+		".jpeg": "image",
+		".jpg":  "image",
+		".gif":  "image",
+		".png":  "image",
+		".mov":  "video",
+		".mp4":  "video",
+		".avi":  "video",
+		".flv":  "video",
+		".wmv":  "video",
+	}
 )
 
 type Location struct {
@@ -115,4 +132,40 @@ func getPostFromSearchResult(searchResult *elastic.SearchResult) []Post {
 		}
 	}
 	return posts
+}
+
+func saveToGCS(r io.Reader, objectName string) (*storage.ObjectAttrs, error) {
+	ctx := context.Background()
+
+	client, err := storage.NewClient(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	bucket := client.Bucket(BUCKET_NAME)
+	if _, err := bucket.Attrs(ctx); err != nil {
+		return nil, err
+	}
+
+	object := bucket.Object(objectName)
+	wc := object.NewWriter(ctx)
+	if _, err := io.Copy(wc, r); err != nil {
+		return nil, err
+	}
+
+	if err := wc.Close(); err != nil {
+		return nil, err
+	}
+
+	if err := object.ACL().Set(ctx, storage.AllUsers, storage.RoleReader); err != nil {
+		return nil, err
+	}
+
+	attrs, err := object.Attrs(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	fmt.Printf("Image is saved to GCS: %s\n", attrs.MediaLink)
+	return attrs, nil
 }
