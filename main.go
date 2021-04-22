@@ -7,6 +7,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"path/filepath"
 	"reflect"
 	"strconv"
 
@@ -62,13 +63,51 @@ func main() {
 func handlerPost(w http.ResponseWriter, r *http.Request) {
 	// Parse from body of request to get a json object.
 	fmt.Println("Received one post request")
-	decoder := json.NewDecoder(r.Body)
-	var p Post
-	if err := decoder.Decode(&p); err != nil {
-		panic(err)
+	w.Header().Set("Content-Type", "application/json")
+
+	lat, _ := strconv.ParseFloat(r.FormValue("lat"), 64)
+	lon, _ := strconv.ParseFloat(r.FormValue("lon"), 64)
+
+	p := &Post{
+		User:    r.FormValue("user"),
+		Message: r.FormValue("message"),
+		Location: Location{
+			Lat: lat,
+			Lon: lon,
+		},
+		Face: 0.0,
 	}
 
-	fmt.Fprintf(w, "Post received: %s\n", p.Message)
+	file, header, err := r.FormFile("image")
+	if err != nil {
+		http.Error(w, "Image is not available", http.StatusBadRequest)
+		fmt.Printf("Image is not available %v\n", err)
+		return
+	}
+
+	suffix := filepath.Ext(header.Filename)
+	if t, ok := mediaTypes[suffix]; ok {
+		p.Type = t
+	} else {
+		p.Type = "unknown"
+	}
+
+	id := uuid.New()
+	attrs, err := saveToGCS(file, id)
+	if err != nil {
+		http.Error(w, "Failed to save image to GCS", http.StatusInternalServerError)
+		fmt.Printf("Failed to save image to GCS %v\n", err)
+		return
+	}
+	p.Url = attrs.MediaLink
+
+	err = saveToES(p, POST_INDEX, id)
+	if err != nil {
+		http.Error(w, "Failed to save post to Elasticsearch", http.StatusInternalServerError)
+		fmt.Printf("Failed to save post to Elasticsearch %v\n", err)
+		return
+	}
+
 }
 
 func handlerSearch(w http.ResponseWriter, r *http.Request) {
@@ -168,4 +207,24 @@ func saveToGCS(r io.Reader, objectName string) (*storage.ObjectAttrs, error) {
 
 	fmt.Printf("Image is saved to GCS: %s\n", attrs.MediaLink)
 	return attrs, nil
+}
+
+func saveToES(post *Post, index string, id string) error {
+	client, err := elastic.NewClient(elastic.SetURL(ES_URL))
+	if err != nil {
+		return err
+	}
+
+	_, err = client.Index().
+		Index(index).
+		Id(id).
+		BodyJson(post).
+		Do(context.Background())
+
+	if err != nil {
+		return err
+	}
+
+	fmt.Printf("Post is saved to index: %s\n", post.Message)
+	return nil
 }
