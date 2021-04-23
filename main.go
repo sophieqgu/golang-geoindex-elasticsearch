@@ -12,6 +12,7 @@ import (
 	"strconv"
 
 	"cloud.google.com/go/storage"
+	"github.com/gorilla/mux"
 	"github.com/olivere/elastic"
 	"github.com/pborman/uuid"
 )
@@ -55,17 +56,25 @@ type Post struct {
 
 func main() {
 	fmt.Println("started-service")
-	http.HandleFunc("/post", handlerPost)
-	http.HandleFunc("/search", handlerSearch)
-	http.HandleFunc("/cluster", handlerCluster)
-	log.Fatal(http.ListenAndServe(":8080", nil))
+	r := mux.NewRouter()
 
+	r.Handle("/post", http.HandlerFunc(handlerPost)).Methods("POST", "OPTIONS")
+	r.Handle("/search", http.HandlerFunc(handlerSearch)).Methods("GET", "OPTIONS")
+	r.Handle("/cluster", http.HandlerFunc(handlerCluster)).Methods("GET", "OPTIONS")
+
+	log.Fatal(http.ListenAndServe(":8080", r))
 }
 
 func handlerPost(w http.ResponseWriter, r *http.Request) {
 	// Parse from body of request to get a json object.
 	fmt.Println("Received one post request")
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+
+	if r.Method == "OPTIONS" {
+		return
+	}
 
 	lat, _ := strconv.ParseFloat(r.FormValue("lat"), 64)
 	lon, _ := strconv.ParseFloat(r.FormValue("lon"), 64)
@@ -127,6 +136,12 @@ func handlerSearch(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Received one request for search")
 
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+
+	if r.Method == "OPTIONS" {
+		return
+	}
 
 	lat, _ := strconv.ParseFloat(r.URL.Query().Get("lat"), 64)
 	lon, _ := strconv.ParseFloat(r.URL.Query().Get("lon"), 64)
@@ -245,6 +260,12 @@ func saveToES(post *Post, index string, id string) error {
 func handlerCluster(w http.ResponseWriter, r *http.Request) {
 	fmt.Println("Received one cluster request")
 	w.Header().Set("Content-Type", "application/json")
+	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Content-Type,Authorization")
+
+	if r.Method == "OPTIONS" {
+		return
+	}
 
 	term := r.URL.Query().Get("term")
 	query := elastic.NewRangeQuery(term).Gte(0.9)
