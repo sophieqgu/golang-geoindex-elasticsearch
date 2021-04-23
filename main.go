@@ -13,7 +13,7 @@ import (
 
 	"cloud.google.com/go/storage"
 	jwtmiddleware "github.com/auth0/go-jwt-middleware"
-	jwt "github.com/dgrijalva/jwt-go"
+	jwt "github.com/form3tech-oss/jwt-go"
 	"github.com/gorilla/mux"
 	"github.com/olivere/elastic"
 	"github.com/pborman/uuid"
@@ -268,7 +268,6 @@ func saveToES(i interface{}, index string, id string) error {
 		return err
 	}
 
-	return nil
 	return nil
 }
 
