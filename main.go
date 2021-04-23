@@ -102,6 +102,17 @@ func handlerPost(w http.ResponseWriter, r *http.Request) {
 	}
 	p.Url = attrs.MediaLink
 
+	if p.Type == "image" {
+		uri := fmt.Sprintf("gs://%s/%s", BUCKET_NAME, id)
+		if score, err := annotate(uri); err != nil {
+			http.Error(w, "Failed to annotate the image", http.StatusInternalServerError)
+			fmt.Printf("Failed to annotate the image %v\n", err)
+			return
+		} else {
+			p.Face = score
+		}
+	}
+
 	err = saveToES(p, POST_INDEX, id)
 	if err != nil {
 		http.Error(w, "Failed to save post to Elasticsearch", http.StatusInternalServerError)
