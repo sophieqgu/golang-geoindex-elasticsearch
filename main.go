@@ -237,7 +237,7 @@ func saveToGCS(r io.Reader, objectName string) (*storage.ObjectAttrs, error) {
 	return attrs, nil
 }
 
-func saveToES(post *Post, index string, id string) error {
+func saveToES(i interface{}, index string, id string) error {
 	client, err := elastic.NewClient(elastic.SetURL(ES_URL))
 	if err != nil {
 		return err
@@ -246,14 +246,14 @@ func saveToES(post *Post, index string, id string) error {
 	_, err = client.Index().
 		Index(index).
 		Id(id).
-		BodyJson(post).
+		BodyJson(i).
 		Do(context.Background())
 
 	if err != nil {
 		return err
 	}
 
-	fmt.Printf("Post is saved to index: %s\n", post.Message)
+	return nil
 	return nil
 }
 
