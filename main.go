@@ -57,6 +57,7 @@ func main() {
 	fmt.Println("started-service")
 	http.HandleFunc("/post", handlerPost)
 	http.HandleFunc("/search", handlerSearch)
+	http.HandleFunc("/cluster", handlerCluster)
 	log.Fatal(http.ListenAndServe(":8080", nil))
 
 }
@@ -239,4 +240,27 @@ func saveToES(post *Post, index string, id string) error {
 
 	fmt.Printf("Post is saved to index: %s\n", post.Message)
 	return nil
+}
+
+func handlerCluster(w http.ResponseWriter, r *http.Request) {
+	fmt.Println("Received one cluster request")
+	w.Header().Set("Content-Type", "application/json")
+
+	term := r.URL.Query().Get("term")
+	query := elastic.NewRangeQuery(term).Gte(0.9)
+
+	searchResult, err := readFromES(query, POST_INDEX)
+	if err != nil {
+		http.Error(w, "Failed to read from Elasticsearch", http.StatusInternalServerError)
+		return
+	}
+
+	posts := getPostFromSearchResult(searchResult)
+	js, err := json.Marshal(posts)
+	if err != nil {
+		http.Error(w, "Failed to parse post object", http.StatusInternalServerError)
+		fmt.Printf("Failed to parse post object %v\n", err)
+		return
+	}
+	w.Write(js)
 }
